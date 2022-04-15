@@ -27,12 +27,16 @@ public class BTree<V> {
         @Override
         public String toString() {
             return "Node{" +
-                    "key=" + Arrays.toString(key) +
-                    ", childNode=" + Arrays.toString(childNode) +
-                    '}';
+                    "key=" + Arrays.toString(key) + '}';
         }
     }
 
+    /**
+     * 根据key获取一个元素
+     *
+     * @param key
+     * @return
+     */
     public V get(String key) {
         if (null == root) {
             return null;
@@ -54,7 +58,11 @@ public class BTree<V> {
         }
     }
 
-
+    /**
+     * 根据key删除元素
+     *
+     * @param key
+     */
     public void delete(String key) {
 
     }
@@ -70,7 +78,6 @@ public class BTree<V> {
             create(key, value);
             return;
         }
-
         if (root.num == T * 2 - 1) {
             Node<V> newRoot = new Node<>();
             newRoot.leaf = Boolean.FALSE;
@@ -78,10 +85,8 @@ public class BTree<V> {
             newRoot.num = 0;
             root = newRoot;
             splitChild(root, 0);
-            insertNotFull(root, key, value);
-        } else {
-            insertNotFull(root, key, value);
         }
+        insertNotFull(root, key, value);
 
     }
 
@@ -138,7 +143,7 @@ public class BTree<V> {
         fatherNode.value[index] = needSplit.value[T - 1];
         needSplit.key[T - 1] = null;
 
-        //子节点迁移父节点的子节点
+        //子节点迁移至父节点中
         for (int i = fatherNode.num; i > index; i--) {
             fatherNode.childNode[i + 1] = fatherNode.childNode[i];
         }
