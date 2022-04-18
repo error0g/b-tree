@@ -83,11 +83,12 @@ public class BTree<V> {
         //情况1
         if (node.leaf) {
             if (key.equals(node.key[i])) {
-                for (int j = i; j < node.num; j++) {
+                for (int j = i; j < node.num - 1; j++) {
                     node.key[j] = node.key[j + 1];
                     node.value[j] = node.value[j + 1];
                 }
-
+                node.key[node.num-1] = null;
+                node.value[node.num-1] = null;
                 node.num--;
             }
         } else {
