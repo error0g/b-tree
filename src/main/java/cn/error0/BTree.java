@@ -8,7 +8,15 @@ import java.util.Arrays;
  * @date 2022/04/09 20:49
  **/
 public class BTree<V> {
-
+    /**
+     * <p> B树的定义</p>
+     * 1、每个结点属性
+     * <blockquote>a. x.n，当前结点存储key数量</blockquote>
+     * <blockquote>b. x.n个key关键字顺序存放 x.key[i]<x.key[i+1]</blockquote>
+     * 2、每个结点包含x.n+1个子结点，叶子结点不包含。
+     * <p> 2、每个结点包含x.n+1个子结点，叶子结点不包含。</p>
+     * 3、T表示结点宽度，每个结点结点数量至少包含T-1，最大数量为2*T-1
+     */
     private static final Integer T = 2;
     private Node root;
 
@@ -26,8 +34,7 @@ public class BTree<V> {
 
         @Override
         public String toString() {
-            return "Node{" +
-                    "key=" + Arrays.toString(key) + '}';
+            return Arrays.toString(key);
         }
     }
 
@@ -66,7 +73,7 @@ public class BTree<V> {
      * <blockquote><pre>c.否者如果y和z都只有t-1个关键字，则将key与z合并到y中，使得y有2t-1个关键字，再从y中递归删除key</pre></blockquote>
      * <p>3、如果key不存在x节点中，必然在x的某个子节点。如果childNode[i]子节点只有t-1个关键字</p>
      * <blockquote><pre>a.如果childNode[i-1] 拥有至少t个关键字，则将x的某个关键字降至childNode[i],childNode[i-1]的最大关键字提升到x</pre></blockquote>
-     * <blockquote><pre>b.如果childNode[i+1] 拥有至少t个关键字，则将x的某个关键字降至childNode[i],childNode[i+1]的最大关键字提升到x</pre></blockquote>
+     * <blockquote><pre>b.如果childNode[i+1] 拥有至少t个关键字，则将x的某个关键字降至childNode[i],childNode[i+1]的最小关键字提升到x</pre></blockquote>
      * <blockquote><pre>c.如果childNode[i-1]和childNode[i+1]都只拥有t-1个关键字，则将childNode[i]与其中一个合并，将x的一个关键之将到新合并的节点中成为中间关键字。</pre></blockquote>
      *
      * @param key
@@ -80,20 +87,20 @@ public class BTree<V> {
     private void delete(Node node, String key) {
         int i = 0;
         for (; i < node.num && key.compareTo(node.key[i]) > 0; i++) ;
-        //情况1
+        //1
         if (node.leaf) {
             if (key.equals(node.key[i])) {
                 for (int j = i; j < node.num - 1; j++) {
                     node.key[j] = node.key[j + 1];
                     node.value[j] = node.value[j + 1];
                 }
-                node.key[node.num-1] = null;
-                node.value[node.num-1] = null;
+                node.key[node.num - 1] = null;
+                node.value[node.num - 1] = null;
                 node.num--;
             }
         } else {
-            //情况2.a
-            if (key.equals(node.key[i])) {
+            //2.a
+            if (i < node.num && key.equals(node.key[i])) {
                 if (node.childNode[i].num >= T) {
                     Node leftNode = node.childNode[i];
                     while (!leftNode.leaf) {
@@ -105,7 +112,7 @@ public class BTree<V> {
                     node.value[i] = value;
                     delete(leftNode, maxKey);
                     leftNode.num--;
-                    //情况2.b
+                    //2.b
                 } else if (node.childNode[i + 1].num >= T) {
                     Node rightNode = node.childNode[i + 1];
                     while (!rightNode.leaf) {
@@ -117,43 +124,132 @@ public class BTree<V> {
                     node.value[i] = value;
                     delete(rightNode, miniKey);
                     rightNode.num--;
-                    //情况2.c
+                    //2.c
                 } else {
                     merge(node, i);
                     delete(node.childNode[i], key);
                 }
             } else {
-
+                //第三种情况
+                Node leftChild = node.childNode[i];
+                Node rightChild = null;
+                if (i < node.num) {
+                    rightChild = node.childNode[i + 1];
+                }
+                if (leftChild.num == T - 1) {
+                    Node prev = null;
+                    if (i > 0) {
+                        prev = node.childNode[i - 1];
+                    }
+                    //3.a
+                    if (i > 0 && prev.num >= T) {
+                        prevShiftLeft(node, i, prev, leftChild);
+                        leftChild = prev;
+                    }
+                    //3.b
+                    else if (i < node.num && rightChild.num >= T) {
+                        rightShiftLeft(node, i, leftChild, rightChild);
+                    }
+                    //3.c
+                    else {
+                        merge(node, i);
+                    }
+                }
+                delete(leftChild, key);
             }
         }
     }
 
-    private void merge(Node x, int index) {
-        Node y = x.childNode[index];
-        Node z = x.childNode[index + 1];
-        String key = x.key[index];
-        V value = (V) x.value[index];
+    /**
+     * @param father    x
+     * @param prev      c[i-1]
+     * @param leftChild c[i]
+     */
+    private void prevShiftLeft(Node father, int index, Node prev, Node leftChild) {
+        String fatherKey = father.key[index];
+        V fatherValue = (V) father.value[index];
 
-        y.key[T - 1] = key;
-        y.value[T - 1] = value;
-        y.num++;
+        //c[i-1]移动至x
+        while (!prev.leaf) {
+            prev = prev.childNode[prev.num];
+        }
+        for (int i = father.num - 1; i > 1; i--) {
+            father.key[i] = father.key[i - 1];
+            father.value[i] = father.value[i - 1];
+        }
+        father.key[0] = prev.key[prev.num - 1];
+        father.value[0] = prev.value[prev.num - 1];
+        prev.key[prev.num - 1] = null;
+        prev.value[prev.num - 1] = null;
+        prev.num--;
+
+        //x移动至c[i]
+        leftChild.key[leftChild.num - 1] = fatherKey;
+        leftChild.value[leftChild.num - 1] = fatherValue;
+        leftChild.num++;
+    }
+
+    /**
+     * @param father     x
+     * @param leftChild  c[i]
+     * @param rightChild c[i+1]
+     */
+    private void rightShiftLeft(Node father, int index, Node leftChild, Node rightChild) {
+        String fatherKey = father.key[index];
+        V fatherValue = (V) father.value[index];
+
+        //x移动至c[i]
+        leftChild.key[leftChild.num] = fatherKey;
+        leftChild.value[leftChild.num] = fatherValue;
+        leftChild.num++;
+        for (int i = index; i < father.num - 1; i++) {
+            father.key[i] = father.key[i];
+            father.value[i] = father.value[i];
+        }
+        father.num--;
+
+        //c[i+1]移动至x
+        while (!rightChild.leaf) {
+            rightChild = rightChild.childNode[0];
+        }
+        father.key[father.num] = rightChild.key[0];
+        father.value[father.num] = rightChild.value[0];
+
+        for (int i = 0; i < rightChild.num - 1; i++) {
+            rightChild.key[i] = rightChild.key[i + 1];
+            rightChild.value[i] = rightChild.value[i + 1];
+        }
+
+        rightChild.num--;
+        rightChild.key[rightChild.num] = null;
+        rightChild.value[rightChild.num] = null;
+    }
+
+    private void merge(Node father, int index) {
+        Node left = father.childNode[index];
+        Node right = father.childNode[index + 1];
+        String key = father.key[index];
+        V value = (V) father.value[index];
+
+        left.key[T - 1] = key;
+        left.value[T - 1] = value;
+        left.num++;
 
         for (int i = T; i < 2 * T - 1; i++) {
-            y.key[i] = z.key[i - T];
-            y.value[i] = z.value[i - T];
-            y.num++;
+            left.key[i] = right.key[i - T];
+            left.value[i] = right.value[i - T];
+            left.num++;
         }
-        if (!z.leaf) {
+        if (!right.leaf) {
             for (int i = T; i < 2 * T; i++) {
-                y.childNode[i] = z.childNode[i - T];
+                left.childNode[i] = right.childNode[i - T];
             }
         }
 
         for (int i = index + 1; i < root.num; i++) {
-            x.childNode[i] = x.childNode[i + 1];
+            father.childNode[i] = father.childNode[i + 1];
         }
     }
-
 
     /**
      * @param key
@@ -190,8 +286,8 @@ public class BTree<V> {
         root.num = 1;
     }
 
-    private void splitChild(Node fatherNode, int index) {
-        Node needSplit = fatherNode.childNode[index];
+    private void splitChild(Node father, int index) {
+        Node needSplit = father.childNode[index];
         Node right = new Node();
         right.leaf = needSplit.leaf;
         right.num = T - 1;
@@ -214,22 +310,22 @@ public class BTree<V> {
         needSplit.num = T - 1;
 
         //key转移到父节点
-        for (int i = fatherNode.num - 1; i >= index; i--) {
-            fatherNode.key[i + 1] = fatherNode.key[i];
-            fatherNode.value[i + 1] = fatherNode.value[i];
+        for (int i = father.num - 1; i >= index; i--) {
+            father.key[i + 1] = father.key[i];
+            father.value[i + 1] = father.value[i];
         }
 
-        fatherNode.key[index] = needSplit.key[T - 1];
-        fatherNode.value[index] = needSplit.value[T - 1];
+        father.key[index] = needSplit.key[T - 1];
+        father.value[index] = needSplit.value[T - 1];
         needSplit.key[T - 1] = null;
 
         //子节点迁移至父节点中
-        for (int i = fatherNode.num; i > index; i--) {
-            fatherNode.childNode[i + 1] = fatherNode.childNode[i];
+        for (int i = father.num; i > index; i--) {
+            father.childNode[i + 1] = father.childNode[i];
         }
-        fatherNode.childNode[index + 1] = right;
+        father.childNode[index + 1] = right;
         needSplit.childNode[T] = null;
-        fatherNode.num++;
+        father.num++;
     }
 
     private void insertNotFull(Node node, String key, V value) {
