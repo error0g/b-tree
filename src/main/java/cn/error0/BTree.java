@@ -18,9 +18,9 @@ public class BTree<V> {
      * 3、T表示结点宽度，每个结点结点数量至少包含T-1，最大数量为2*T-1
      */
     private static final Integer T = 2;
-    private Node root;
+    private Node<V> root;
 
-    private class Node<V> {
+    private static class Node<V> {
 
         String[] key = new String[2 * T - 1];
         V[] value = (V[]) new Object[2 * T - 1];
@@ -51,15 +51,15 @@ public class BTree<V> {
         return treeSearch(root, key);
     }
 
-    private V treeSearch(Node node, String key) {
+    private V treeSearch(Node<V> node, String key) {
         int i = 0;
         for (; i < node.num && key.compareTo(node.key[i]) > 0; i++) ;
         if (i < node.num && key.equals(node.key[i])) {
-            return (V) node.value[i];
+            return node.value[i];
         } else if (node.leaf) {
             return null;
         } else {
-            return (V) treeSearch(node.childNode[i], key);
+            return treeSearch(node.childNode[i], key);
         }
     }
 
@@ -84,7 +84,7 @@ public class BTree<V> {
         delete(root, key);
     }
 
-    private void delete(Node node, String key) {
+    private void delete(Node<V> node, String key) {
         int i = 0;
         for (; i < node.num && key.compareTo(node.key[i]) > 0; i++) ;
         //1
@@ -102,24 +102,24 @@ public class BTree<V> {
             //2.a
             if (i < node.num && key.equals(node.key[i])) {
                 if (node.childNode[i].num >= T) {
-                    Node leftNode = node.childNode[i];
+                    Node<V> leftNode = node.childNode[i];
                     while (!leftNode.leaf) {
                         leftNode = leftNode.childNode[leftNode.num];
                     }
                     String maxKey = node.key[leftNode.num - 1];
-                    V value = (V) node.value[leftNode.num - 1];
+                    V value = node.value[leftNode.num - 1];
                     node.key[i] = maxKey;
                     node.value[i] = value;
                     delete(leftNode, maxKey);
                     leftNode.num--;
                     //2.b
                 } else if (node.childNode[i + 1].num >= T) {
-                    Node rightNode = node.childNode[i + 1];
+                    Node<V> rightNode = node.childNode[i + 1];
                     while (!rightNode.leaf) {
                         rightNode = rightNode.childNode[0];
                     }
                     String miniKey = rightNode.key[0];
-                    V value = (V) rightNode.value[0];
+                    V value = rightNode.value[0];
                     node.key[i] = miniKey;
                     node.value[i] = value;
                     delete(rightNode, miniKey);
@@ -131,13 +131,13 @@ public class BTree<V> {
                 }
             } else {
                 //第三种情况
-                Node leftChild = node.childNode[i];
-                Node rightChild = null;
+                Node<V> leftChild = node.childNode[i];
+                Node<V> rightChild = null;
                 if (i < node.num) {
                     rightChild = node.childNode[i + 1];
                 }
                 if (leftChild.num == T - 1) {
-                    Node prev = null;
+                    Node<V> prev = null;
                     if (i > 0) {
                         prev = node.childNode[i - 1];
                     }
@@ -165,9 +165,9 @@ public class BTree<V> {
      * @param prev      c[i-1]
      * @param leftChild c[i]
      */
-    private void prevShiftLeft(Node father, int index, Node prev, Node leftChild) {
+    private void prevShiftLeft(Node<V> father, int index, Node<V> prev, Node<V> leftChild) {
         String fatherKey = father.key[index];
-        V fatherValue = (V) father.value[index];
+        V fatherValue = father.value[index];
 
         //c[i-1]移动至x
         while (!prev.leaf) {
@@ -194,7 +194,7 @@ public class BTree<V> {
      * @param leftChild  c[i]
      * @param rightChild c[i+1]
      */
-    private void rightShiftLeft(Node father, int index, Node leftChild, Node rightChild) {
+    private void rightShiftLeft(Node<V> father, int index, Node<V> leftChild, Node<V> rightChild) {
         String fatherKey = father.key[index];
         V fatherValue = (V) father.value[index];
 
@@ -225,11 +225,11 @@ public class BTree<V> {
         rightChild.value[rightChild.num] = null;
     }
 
-    private void merge(Node father, int index) {
-        Node left = father.childNode[index];
-        Node right = father.childNode[index + 1];
+    private void merge(Node<V> father, int index) {
+        Node<V> left = father.childNode[index];
+        Node<V> right = father.childNode[index + 1];
         String key = father.key[index];
-        V value = (V) father.value[index];
+        V value = father.value[index];
 
         left.key[T - 1] = key;
         left.value[T - 1] = value;
@@ -279,16 +279,16 @@ public class BTree<V> {
      * @param value
      */
     private void create(String key, V value) {
-        root = new Node();
+        root = new Node<V>();
         root.key[0] = key;
         root.value[0] = value;
         root.leaf = Boolean.TRUE;
         root.num = 1;
     }
 
-    private void splitChild(Node father, int index) {
-        Node needSplit = father.childNode[index];
-        Node right = new Node();
+    private void splitChild(Node<V> father, int index) {
+        Node<V> needSplit = father.childNode[index];
+        Node<V> right = new Node<V>();
         right.leaf = needSplit.leaf;
         right.num = T - 1;
 
@@ -328,7 +328,7 @@ public class BTree<V> {
         father.num++;
     }
 
-    private void insertNotFull(Node node, String key, V value) {
+    private void insertNotFull(Node<V> node, String key, V value) {
         int i = node.num - 1;
         if (node.leaf) {
             while (i >= 0 && key.compareTo(node.key[i]) < 0) {
