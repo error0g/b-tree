@@ -1,40 +1,55 @@
 package cn.error0;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+
 import java.util.Arrays;
 
 /**
+ * <p> B树的定义</p>
+ * 1、每个结点属性
+ * <blockquote>a. x.n，当前结点存储key数量</blockquote>
+ * <blockquote>b. x.n个key关键字顺序存放 x.key[i]<x.key[i+1]</blockquote>
+ * 2、每个结点包含x.n+1个子结点，叶子结点不包含。
+ * <p> 2、每个结点包含x.n+1个子结点，叶子结点不包含。</p>
+ * 3、T表示结点宽度，每个结点结点数量至少包含T-1，最大数量为2*T-1
+ *
  * @author error0
- * @description
- * @date 2022/04/09 20:49
- **/
+ */
 public class BTree<V> {
-    /**
-     * <p> B树的定义</p>
-     * 1、每个结点属性
-     * <blockquote>a. x.n，当前结点存储key数量</blockquote>
-     * <blockquote>b. x.n个key关键字顺序存放 x.key[i]<x.key[i+1]</blockquote>
-     * 2、每个结点包含x.n+1个子结点，叶子结点不包含。
-     * <p> 2、每个结点包含x.n+1个子结点，叶子结点不包含。</p>
-     * 3、T表示结点宽度，每个结点结点数量至少包含T-1，最大数量为2*T-1
-     */
-    private static final Integer T = 2;
+    private static final Integer DEFAULT_INITIAL_CAPACITY = 2;
     private Node<V> root;
 
+    @Data
+    @AllArgsConstructor
+    private static class Element<V> implements Comparable<V> {
+        private String key;
+        private V value;
+
+        @Override
+        public int compareTo(Object o) {
+            return key.compareTo(String.valueOf(o));
+        }
+
+        @Override
+        public String toString() {
+            return key;
+        }
+    }
+
     private static class Node<V> {
-
-        String[] key = new String[2 * T - 1];
-        V[] value = (V[]) new Object[2 * T - 1];
-
         //节点总数
         Integer num;
         //是否为叶子节点
         Boolean leaf;
+        //元素
+        Element<V>[] elements = new Element[2 * DEFAULT_INITIAL_CAPACITY - 1];
         //叶子节点
-        Node<V>[] childNode = new Node[2 * T];
+        Node<V>[] childNode = new Node[2 * DEFAULT_INITIAL_CAPACITY];
 
         @Override
         public String toString() {
-            return Arrays.toString(key);
+            return Arrays.toString(elements);
         }
     }
 
@@ -45,22 +60,37 @@ public class BTree<V> {
      * @return
      */
     public V get(String key) {
-        if (null == root) {
-            return null;
-        }
-        return treeSearch(root, key);
+        return this.root == null ? null : this.search(this.root, key);
     }
 
-    private V treeSearch(Node<V> node, String key) {
+    private V search(Node<V> node, String key) {
         int i = 0;
-        for (; i < node.num && key.compareTo(node.key[i]) > 0; i++) ;
-        if (i < node.num && key.equals(node.key[i])) {
-            return node.value[i];
+        for (; i < node.num && node.elements[i].compareTo(key) < 0; i++) ;
+        if (i < node.num && key.equals(node.elements[i].getKey())) {
+            return node.elements[i].getValue();
         } else if (node.leaf) {
             return null;
         } else {
-            return treeSearch(node.childNode[i], key);
+            //递归寻找子树
+            return this.search(node.childNode[i], key);
         }
+    }
+
+    public void remove(String key) {
+        if (null == this.root)
+            return;
+        //特殊处理：当有2层结点，第三中情况需要跟root进行提前合并
+        if (root.num == 1
+                && ((root.childNode[0] != null && root.childNode[0].num == 1)
+                && root.childNode[1] != null && root.childNode[1].num == 1)) {
+            root.elements[1] = root.elements[0];
+            root.elements[0] = root.childNode[0].elements[0];
+            root.elements[2] = root.childNode[1].elements[0];
+            root.childNode[0] = root.childNode[1] = null;
+            root.num = 3;
+            root.leaf = true;
+        }
+        this.remove(this.root, key);
     }
 
     /**
@@ -78,56 +108,44 @@ public class BTree<V> {
      *
      * @param key
      */
-    public void delete(String key) {
-        if (null == root)
-            return;
-        delete(root, key);
-    }
-
-    private void delete(Node<V> node, String key) {
+    private void remove(Node<V> node, String key) {
         int i = 0;
-        for (; i < node.num && key.compareTo(node.key[i]) > 0; i++) ;
+        for (; i < node.num && node.elements[i].compareTo(key) < 0; i++) ;
         //1
         if (node.leaf) {
-            if (key.equals(node.key[i])) {
+            if (key.equals(node.elements[i].getKey())) {
                 for (int j = i; j < node.num - 1; j++) {
-                    node.key[j] = node.key[j + 1];
-                    node.value[j] = node.value[j + 1];
+                    node.elements[j] = node.elements[j + 1];
                 }
-                node.key[node.num - 1] = null;
-                node.value[node.num - 1] = null;
+                node.elements[node.num - 1] = null;
                 node.num--;
             }
         } else {
             //2.a
-            if (i < node.num && key.equals(node.key[i])) {
-                if (node.childNode[i].num >= T) {
+            if (i < node.num && key.equals(node.elements[i].getKey())) {
+                if (node.childNode[i].num >= DEFAULT_INITIAL_CAPACITY) {
                     Node<V> leftNode = node.childNode[i];
                     while (!leftNode.leaf) {
                         leftNode = leftNode.childNode[leftNode.num];
                     }
-                    String maxKey = node.key[leftNode.num - 1];
-                    V value = node.value[leftNode.num - 1];
-                    node.key[i] = maxKey;
-                    node.value[i] = value;
-                    delete(leftNode, maxKey);
+                    String maxKey = node.elements[leftNode.num - 1].getKey();
+                    node.elements[i] = node.elements[leftNode.num - 1];
+                    this.remove(leftNode, maxKey);
                     leftNode.num--;
                     //2.b
-                } else if (node.childNode[i + 1].num >= T) {
+                } else if (node.childNode[i + 1].num >= DEFAULT_INITIAL_CAPACITY) {
                     Node<V> rightNode = node.childNode[i + 1];
                     while (!rightNode.leaf) {
                         rightNode = rightNode.childNode[0];
                     }
-                    String miniKey = rightNode.key[0];
-                    V value = rightNode.value[0];
-                    node.key[i] = miniKey;
-                    node.value[i] = value;
-                    delete(rightNode, miniKey);
+                    String miniKey = rightNode.elements[0].getKey();
+                    node.elements[i] = rightNode.elements[0];
+                    this.remove(rightNode, miniKey);
                     rightNode.num--;
                     //2.c
                 } else {
-                    merge(node, i);
-                    delete(node.childNode[i], key);
+                    this.merge(node, i);
+                    this.remove(node.childNode[i], key);
                 }
             } else {
                 //第三种情况
@@ -136,26 +154,26 @@ public class BTree<V> {
                 if (i < node.num) {
                     rightChild = node.childNode[i + 1];
                 }
-                if (leftChild.num == T - 1) {
+                if (leftChild.num == DEFAULT_INITIAL_CAPACITY - 1) {
                     Node<V> prev = null;
                     if (i > 0) {
                         prev = node.childNode[i - 1];
                     }
                     //3.a
-                    if (i > 0 && prev.num >= T) {
+                    if (i > 0 && prev.num >= DEFAULT_INITIAL_CAPACITY) {
                         prevShiftLeft(node, i, prev, leftChild);
                         leftChild = prev;
                     }
                     //3.b
-                    else if (i < node.num && rightChild.num >= T) {
-                        rightShiftLeft(node, i, leftChild, rightChild);
+                    else if (i < node.num && rightChild.num >= DEFAULT_INITIAL_CAPACITY) {
+                        this.rightShiftLeft(node, i, leftChild, rightChild);
                     }
                     //3.c
                     else {
-                        merge(node, i);
+                        this.merge(node, i);
                     }
                 }
-                delete(leftChild, key);
+                this.remove(leftChild, key);
             }
         }
     }
@@ -166,26 +184,20 @@ public class BTree<V> {
      * @param leftChild c[i]
      */
     private void prevShiftLeft(Node<V> father, int index, Node<V> prev, Node<V> leftChild) {
-        String fatherKey = father.key[index];
-        V fatherValue = father.value[index];
-
+        final Element<V> original = father.elements[index];
         //c[i-1]移动至x
         while (!prev.leaf) {
             prev = prev.childNode[prev.num];
         }
         for (int i = father.num - 1; i > 1; i--) {
-            father.key[i] = father.key[i - 1];
-            father.value[i] = father.value[i - 1];
+            father.elements[i] = father.elements[i - 1];
         }
-        father.key[0] = prev.key[prev.num - 1];
-        father.value[0] = prev.value[prev.num - 1];
-        prev.key[prev.num - 1] = null;
-        prev.value[prev.num - 1] = null;
+        father.elements[0] = prev.elements[prev.num - 1];
+        prev.elements[prev.num - 1] = null;
         prev.num--;
 
         //x移动至c[i]
-        leftChild.key[leftChild.num - 1] = fatherKey;
-        leftChild.value[leftChild.num - 1] = fatherValue;
+        leftChild.elements[leftChild.num - 1] = original;
         leftChild.num++;
     }
 
@@ -195,60 +207,53 @@ public class BTree<V> {
      * @param rightChild c[i+1]
      */
     private void rightShiftLeft(Node<V> father, int index, Node<V> leftChild, Node<V> rightChild) {
-        String fatherKey = father.key[index];
-        V fatherValue = (V) father.value[index];
-
         //x移动至c[i]
-        leftChild.key[leftChild.num] = fatherKey;
-        leftChild.value[leftChild.num] = fatherValue;
+        leftChild.elements[leftChild.num] = father.elements[index];
         leftChild.num++;
         for (int i = index; i < father.num - 1; i++) {
-            father.key[i] = father.key[i];
-            father.value[i] = father.value[i];
+            father.elements[i] = father.elements[i + 1];
         }
-        father.num--;
-
         //c[i+1]移动至x
         while (!rightChild.leaf) {
             rightChild = rightChild.childNode[0];
         }
-        father.key[father.num] = rightChild.key[0];
-        father.value[father.num] = rightChild.value[0];
+        father.elements[father.num - 1] = rightChild.elements[0];
 
         for (int i = 0; i < rightChild.num - 1; i++) {
-            rightChild.key[i] = rightChild.key[i + 1];
-            rightChild.value[i] = rightChild.value[i + 1];
+            rightChild.elements[i] = rightChild.elements[i + 1];
         }
-
         rightChild.num--;
-        rightChild.key[rightChild.num] = null;
-        rightChild.value[rightChild.num] = null;
+        rightChild.elements[rightChild.num] = null;
     }
 
+    /**
+     * @param father
+     * @param index
+     */
     private void merge(Node<V> father, int index) {
         Node<V> left = father.childNode[index];
         Node<V> right = father.childNode[index + 1];
-        String key = father.key[index];
-        V value = father.value[index];
-
-        left.key[T - 1] = key;
-        left.value[T - 1] = value;
+        left.elements[DEFAULT_INITIAL_CAPACITY - 1] = father.elements[index];
         left.num++;
 
-        for (int i = T; i < 2 * T - 1; i++) {
-            left.key[i] = right.key[i - T];
-            left.value[i] = right.value[i - T];
+        for (int i = DEFAULT_INITIAL_CAPACITY; i < 2 * DEFAULT_INITIAL_CAPACITY - 1; i++) {
+            left.elements[i] = right.elements[i - DEFAULT_INITIAL_CAPACITY];
             left.num++;
         }
         if (!right.leaf) {
-            for (int i = T; i < 2 * T; i++) {
-                left.childNode[i] = right.childNode[i - T];
+            for (int i = DEFAULT_INITIAL_CAPACITY; i < 2 * DEFAULT_INITIAL_CAPACITY; i++) {
+                left.childNode[i] = right.childNode[i - DEFAULT_INITIAL_CAPACITY];
             }
         }
 
+        for (int i = index; i < father.num; i++) {
+            father.elements[i] = father.elements[i + 1];
+        }
         for (int i = index + 1; i < root.num; i++) {
             father.childNode[i] = father.childNode[i + 1];
         }
+        father.childNode[root.num] = null;
+        root.num--;
     }
 
     /**
@@ -260,7 +265,7 @@ public class BTree<V> {
             create(key, value);
             return;
         }
-        if (root.num == T * 2 - 1) {
+        if (root.num == DEFAULT_INITIAL_CAPACITY * 2 - 1) {
             Node<V> newRoot = new Node<>();
             newRoot.leaf = Boolean.FALSE;
             newRoot.childNode[0] = root;
@@ -268,7 +273,7 @@ public class BTree<V> {
             root = newRoot;
             splitChild(root, 0);
         }
-        insertNotFull(root, key, value);
+        this.insert(root, key, value);
 
     }
 
@@ -280,81 +285,85 @@ public class BTree<V> {
      */
     private void create(String key, V value) {
         root = new Node<V>();
-        root.key[0] = key;
-        root.value[0] = value;
+        root.elements[0] = new Element<>(key, value);
         root.leaf = Boolean.TRUE;
         root.num = 1;
     }
 
+    /**
+     * @param father
+     * @param index
+     */
     private void splitChild(Node<V> father, int index) {
         Node<V> needSplit = father.childNode[index];
         Node<V> right = new Node<V>();
         right.leaf = needSplit.leaf;
-        right.num = T - 1;
+        right.num = DEFAULT_INITIAL_CAPACITY - 1;
 
         //复制需要分裂的节点Key
-        for (int i = 0; i < T - 1; i++) {
-            right.key[i] = needSplit.key[T + i];
-            right.value[i] = needSplit.value[T + i];
-            needSplit.key[T + i] = null;
-            needSplit.value[T + i] = null;
+        for (int i = 0; i < DEFAULT_INITIAL_CAPACITY - 1; i++) {
+            right.elements[i] = needSplit.elements[DEFAULT_INITIAL_CAPACITY + i];
+            needSplit.elements[DEFAULT_INITIAL_CAPACITY + i] = null;
         }
 
         //如果不是叶子节点复制子节点
         if (!needSplit.leaf) {
-            for (int i = 0; i < T; i++) {
-                right.childNode[i] = needSplit.childNode[T + i];
-                needSplit.childNode[T + i] = null;
+            for (int i = 0; i < DEFAULT_INITIAL_CAPACITY; i++) {
+                right.childNode[i] = needSplit.childNode[DEFAULT_INITIAL_CAPACITY + i];
+                needSplit.childNode[DEFAULT_INITIAL_CAPACITY + i] = null;
             }
         }
-        needSplit.num = T - 1;
+        needSplit.num = DEFAULT_INITIAL_CAPACITY - 1;
 
         //key转移到父节点
         for (int i = father.num - 1; i >= index; i--) {
-            father.key[i + 1] = father.key[i];
-            father.value[i + 1] = father.value[i];
+            father.elements[i + 1] = father.elements[i];
         }
 
-        father.key[index] = needSplit.key[T - 1];
-        father.value[index] = needSplit.value[T - 1];
-        needSplit.key[T - 1] = null;
+        father.elements[index] = needSplit.elements[DEFAULT_INITIAL_CAPACITY - 1];
+        needSplit.elements[DEFAULT_INITIAL_CAPACITY - 1] = null;
 
         //子节点迁移至父节点中
         for (int i = father.num; i > index; i--) {
             father.childNode[i + 1] = father.childNode[i];
         }
         father.childNode[index + 1] = right;
-        needSplit.childNode[T] = null;
+        needSplit.childNode[DEFAULT_INITIAL_CAPACITY] = null;
         father.num++;
     }
 
-    private void insertNotFull(Node<V> node, String key, V value) {
+    /**
+     * <p>新结点需要插入至叶子结点</p>
+     * 插入节点寻找叶子结点位置时，如果子结点已经满了(node.num>2*T-1)需要进行分裂。
+     *
+     * @param node
+     * @param key
+     * @param value
+     */
+    private void insert(Node<V> node, String key, V value) {
         int i = node.num - 1;
         if (node.leaf) {
-            while (i >= 0 && key.compareTo(node.key[i]) < 0) {
-                node.key[i + 1] = node.key[i];
-                node.value[i + 1] = node.value[i];
+            while (i >= 0 && node.elements[i].compareTo(key) > 0) {
+                node.elements[i + 1] = node.elements[i];
                 i--;
             }
-            node.num++;
             //纠正插入位置
             i++;
-            node.key[i] = key;
-            node.value[i] = value;
+            node.elements[i] = new Element<V>(key, value);
+            node.num++;
         } else {
-            while (i >= 0 && key.compareTo(node.key[i]) < 0) {
+            while (i >= 0 && node.elements[i].compareTo(key) > 0) {
                 i--;
             }
             //纠正位置
             i++;
-            if (node.childNode[i].num == 2 * T - 1) {
+            if (node.childNode[i].num == 2 * DEFAULT_INITIAL_CAPACITY - 1) {
                 splitChild(node, i);
-                if (key.compareTo(node.key[i]) > 0) {
+                if (node.elements[i].compareTo(key) < 0) {
                     i++;
                 }
             }
-            insertNotFull(node.childNode[i], key, value);
+            insert(node.childNode[i], key, value);
         }
-
     }
 }
